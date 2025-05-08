@@ -13,4 +13,25 @@ Fazer um pedido ao ACME para registar a lâmpada (check)
 
 Colocar a lampada a escutar do ACME para fazer a alteração de estado
 
+## Requirements
+
+Python 3.12 to latest version (older versions of 3.x will also work)
+
+## Development
+
+### Clone the repo
+
+### Initialze virtual enviroment (optional)
+
+```sh
+python -m venv .venv
+source .venv/bin/activate
+```
+
+### Install dependencies
+
+```sh
+pip install -r requirements.txt
+```
+
 
