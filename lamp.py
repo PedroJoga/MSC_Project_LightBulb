@@ -10,6 +10,7 @@ ACME_SERVER_URL = "http://localhost:8081/cse-in"
 IS_ACME_SERVER_RUNNING_IN_DOCKER = True  # Set to True if running acme in Docker
 APPLICATION_ENTITY_NAME = "Light-Bulb"
 CONTAINER_NAME = "Is-On"
+ORIGINATOR = "CAdmin2"
 
 NOTIFICATION_SERVER_PORT = 3000
 
@@ -56,9 +57,10 @@ def start_server() -> None:
 
 def check_application_entity_exists() -> bool:
     headers = {
-        "X-M2M-Origin": "CAdmin2",
+        "X-M2M-Origin": ORIGINATOR,
         "X-M2M-RI": "123",
-        "X-M2M-RVI": "3"
+        "X-M2M-RVI": "3",
+        "Accept": "application/json"
     }
     try:
         url = f"{ACME_SERVER_URL}?fu=1&ty=2"
@@ -73,7 +75,7 @@ def check_application_entity_exists() -> bool:
 
 def create_application_entiry_request() -> bool:
     headers = {
-        "X-M2M-Origin": "CAdmin2",
+        "X-M2M-Origin": ORIGINATOR,
         "X-M2M-RI": "123",
         "X-M2M-RVI": "3",
         "Content-Type": "application/json;ty=2",
@@ -97,7 +99,7 @@ def create_application_entiry_request() -> bool:
 
 def create_container_request() -> bool:
     headers = {
-        "X-M2M-Origin": "CAdmin2",
+        "X-M2M-Origin": ORIGINATOR,
         "X-M2M-RI": "123",
         "X-M2M-RVI": "3",
         "Content-Type": "application/json;ty=3",
@@ -119,7 +121,7 @@ def create_container_request() -> bool:
 
 def set_initial_status_request() -> bool:
     headers = {
-        "X-M2M-Origin": "CAdmin2",
+        "X-M2M-Origin": ORIGINATOR,
         "X-M2M-RI": "123",
         "X-M2M-RVI": "3",
         "Content-Type": "application/json;ty=4",
@@ -145,7 +147,7 @@ def create_subscription_request() -> bool:
     local_ip = get_local_ip()
 
     headers = {
-        "X-M2M-Origin": "CAdmin2",
+        "X-M2M-Origin": ORIGINATOR,
         "X-M2M-RI": "123",
         "X-M2M-RVI": "3",
         "Content-Type": "application/json;ty=23",
