@@ -5,6 +5,10 @@ import requests
 import json
 import socket
 import time
+from zeroconf import ServiceInfo, Zeroconf
+import atexit
+import signal
+import sys
 
 ACME_SERVER_URL = "http://localhost:8081/cse-in"
 IS_ACME_SERVER_RUNNING_IN_DOCKER = True  # Set to True if running acme in Docker
@@ -14,8 +18,17 @@ ORIGINATOR = "CAdmin2"
 
 NOTIFICATION_SERVER_PORT = 3000
 
+MDNS_SERVICE_TYPE = "_http._tcp.local."
+MDNS_SERVICE_NAME = "ACME-oneM2M._http._tcp.local."
+MDNS_SERVICE_PORT = 8081  # your ACME oneM2M broker port
+MDNS_SERVICE_DESC = {'path': '/'}  # optional TXT records
+
 # Estado global da lâmpada
 lamp_state = {"on": False}
+
+
+zeroconf = None
+info = None
 
 def get_local_ip() -> str:
     if IS_ACME_SERVER_RUNNING_IN_DOCKER:
@@ -25,6 +38,43 @@ def get_local_ip() -> str:
     local_ip = s.getsockname()[0]
     s.close()   
     return local_ip
+
+def cleanup():
+    global zeroconf, info
+    if zeroconf and info:
+        print("Unregistering mDNS service...")
+        zeroconf.unregister_service(info)
+        zeroconf.close()
+        print("mDNS service unregistered")
+
+def register_service():
+    global zeroconf, info
+
+    zeroconf = Zeroconf()
+    ip_str = get_local_ip()
+    try:
+        resolved_ip = socket.gethostbyname(ip_str)
+        ip_bytes = socket.inet_aton(resolved_ip)
+    except Exception as e:
+        raise RuntimeError(f"Could not resolve IP for '{ip_str}': {e}")
+
+    info = ServiceInfo(
+        MDNS_SERVICE_TYPE,
+        MDNS_SERVICE_NAME,
+        addresses=[ip_bytes],
+        port=MDNS_SERVICE_PORT,
+        properties=MDNS_SERVICE_DESC,
+        server=f"{socket.gethostname()}.local."
+    )
+
+    zeroconf.register_service(info)
+    print(f"Registered mDNS service {MDNS_SERVICE_NAME} at {resolved_ip}:{MDNS_SERVICE_PORT}")
+
+    # Register cleanup handlers
+    atexit.register(cleanup)
+    signal.signal(signal.SIGINT, lambda sig, frame: sys.exit(0))
+    signal.signal(signal.SIGTERM, lambda sig, frame: sys.exit(0))
+
 
 class LampHandler(BaseHTTPRequestHandler):
     def do_POST(self):
@@ -212,6 +262,8 @@ if __name__ == "__main__":
             exit()
     if not create_container_request() or not set_initial_status_request():
         exit()
+
+    register_service()
 
     app_event = threading.Event()
     server_thread = threading.Thread(target=start_server, daemon=True)
