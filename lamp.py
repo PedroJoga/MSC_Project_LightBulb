@@ -11,7 +11,7 @@ import signal
 import sys
 
 ACME_SERVER_URL = "http://localhost:8081/cse-in"
-IS_ACME_SERVER_RUNNING_IN_DOCKER = True  # Set to True if running acme in Docker
+IS_ACME_SERVER_RUNNING_IN_DOCKER = False  # Set to True if running acme in Docker
 APPLICATION_ENTITY_NAME = "Light-Bulb"
 CONTAINER_NAME = "Is-On"
 ORIGINATOR = "CAdmin2"
@@ -84,7 +84,9 @@ class LampHandler(BaseHTTPRequestHandler):
 
         try:
             data = json.loads(data.decode('utf-8'))
+            print("Received notification:", data)
             value = bool(data["m2m:sgn"]["nev"]["rep"]["m2m:cin"]["con"])
+            print("Received notification:", value)
             # change the state of the lamp
             lamp_state["on"] = value
             app_event.set()
