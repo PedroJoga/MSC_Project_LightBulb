@@ -25,6 +25,17 @@ Python 3.12 to latest version (older versions of 3.x will also work)
 
 ```sh
 python -m venv .venv
+```
+Windows (cmd.exe)
+```sh
+.venv/Scripts/activate.bat
+```
+Windows (PowerShell)
+```sh
+.venv/Scripts/Activate.ps1
+```
+Linux/MacOS
+```sh
 source .venv/bin/activate
 ```
 
