@@ -5,7 +5,7 @@ import requests
 import json
 import socket
 import time
-from zeroconf import ServiceInfo, Zeroconf
+from zeroconf import ServiceInfo, Zeroconf, NonUniqueNameException
 import atexit
 import signal
 import sys
@@ -67,13 +67,12 @@ def register_service():
         server=f"{socket.gethostname()}.local."
     )
 
-    zeroconf.register_service(info)
-    print(f"Registered mDNS service {MDNS_SERVICE_NAME} at {resolved_ip}:{MDNS_SERVICE_PORT}")
+    try:
+        zeroconf.register_service(info)
+    except NonUniqueNameException as e:
+        print("WARNING: couldn't register mDNS because found already registered mDNS service")
 
-    # Register cleanup handlers
-    atexit.register(cleanup)
-    signal.signal(signal.SIGINT, lambda sig, frame: sys.exit(0))
-    signal.signal(signal.SIGTERM, lambda sig, frame: sys.exit(0))
+    print(f"Registered mDNS service {MDNS_SERVICE_NAME} at {resolved_ip}:{MDNS_SERVICE_PORT}")
 
 
 class LampHandler(BaseHTTPRequestHandler):
@@ -208,7 +207,7 @@ def create_subscription_request() -> bool:
     payload = {
         "m2m:sub": {
             "rn": "Subscription",
-            "nu": [f"http://{local_ip}:{NOTIFICATION_SERVER_PORT}"],
+            "nu": [f"http://host.docker.internal:{NOTIFICATION_SERVER_PORT}"],
             "nct": 1,
             "enc": {
                 "net": [1, 2, 3, 4]
@@ -258,18 +257,26 @@ def gui_loop() -> None:
     root.mainloop()
 
 if __name__ == "__main__":
+    try:
+        if not check_application_entity_exists():
+            if not create_application_entiry_request():
+                sys.exit(1)
+        if not create_container_request() or not set_initial_status_request():
+            sys.exit(1)
 
-    if not check_application_entity_exists():
-        if not create_application_entiry_request():
-            exit()
-    if not create_container_request() or not set_initial_status_request():
-        exit()
+        register_service()
 
-    register_service()
+        app_event = threading.Event()
+        server_thread = threading.Thread(target=start_server, daemon=True)
+        server_thread.start()
 
-    app_event = threading.Event()
-    server_thread = threading.Thread(target=start_server, daemon=True)
-    server_thread.start()
+        # Start GUI loop
+        gui_loop()
 
-    # start gui
-    gui_loop()
+    except Exception as e:
+        print(f"Unexpected error occurred: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    finally:
+        cleanup()
+
