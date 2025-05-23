@@ -11,7 +11,7 @@ import signal
 import sys
 
 ACME_SERVER_URL = "http://localhost:8081/cse-in"
-IS_ACME_SERVER_RUNNING_IN_DOCKER = False  # Set to True if running acme in Docker
+DOCKER_HOST = "host.docker.internal"  # Docker host IP address
 APPLICATION_ENTITY_NAME = "Light-Bulb"
 CONTAINER_NAME = "Is-On"
 ORIGINATOR = "CAdmin2"
@@ -31,8 +31,6 @@ zeroconf = None
 info = None
 
 def get_local_ip() -> str:
-    if IS_ACME_SERVER_RUNNING_IN_DOCKER:
-        return "host.docker.internal"
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.connect(("8.8.8.8", 80))
     local_ip = s.getsockname()[0]
@@ -73,7 +71,6 @@ def register_service():
         print("WARNING: couldn't register mDNS because found already registered mDNS service")
 
     print(f"Registered mDNS service {MDNS_SERVICE_NAME} at {resolved_ip}:{MDNS_SERVICE_PORT}")
-
 
 class LampHandler(BaseHTTPRequestHandler):
     def do_POST(self):
@@ -171,6 +168,7 @@ def create_container_request() -> bool:
         return False
 
 def set_initial_status_request() -> bool:
+    initial_satus = False
     headers = {
         "X-M2M-Origin": ORIGINATOR,
         "X-M2M-RI": "123",
@@ -180,7 +178,7 @@ def set_initial_status_request() -> bool:
     }
     payload = {
         "m2m:cin": {
-            "con": "false",
+            "con": initial_satus,
             "cnf": "text/plain:0"
         }
     }
@@ -207,7 +205,7 @@ def create_subscription_request() -> bool:
     payload = {
         "m2m:sub": {
             "rn": "Subscription",
-            "nu": [f"http://host.docker.internal:{NOTIFICATION_SERVER_PORT}"],
+            "nu": [f"http://{DOCKER_HOST}:{NOTIFICATION_SERVER_PORT}"],
             "nct": 1,
             "enc": {
                 "net": [1, 2, 3, 4]
