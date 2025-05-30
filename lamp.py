@@ -9,6 +9,7 @@ from zeroconf import ServiceInfo, Zeroconf, NonUniqueNameException
 import atexit
 import signal
 import sys
+import uuid
 
 ACME_SERVER_URL = "http://localhost:8081/cse-in"
 DOCKER_HOST = "host.docker.internal"  # Docker host IP address
@@ -19,7 +20,7 @@ ORIGINATOR = "CAdmin2"
 NOTIFICATION_SERVER_PORT = 3000
 
 MDNS_SERVICE_TYPE = "_http._tcp.local."
-MDNS_SERVICE_NAME = "ACME-oneM2M._http._tcp.local."
+MDNS_SERVICE_NAME = str(uuid.uuid1()) + "._http._tcp.local."
 MDNS_SERVICE_PORT = 8081  # your ACME oneM2M broker port
 MDNS_SERVICE_DESC = {'path': '/'}  # optional TXT records
 
