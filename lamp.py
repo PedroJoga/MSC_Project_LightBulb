@@ -20,16 +20,20 @@ ORIGINATOR = "CAdmin2"
 NOTIFICATION_SERVER_PORT = 3000
 
 MDNS_SERVICE_TYPE = "_http._tcp.local."
-MDNS_SERVICE_NAME = str(uuid.uuid1()) + "._http._tcp.local."
+MDNS_SERVICE_NAME = f"LAMP_{str(uuid.uuid1())}" + "._http._tcp.local."
 MDNS_SERVICE_PORT = 8081  # your ACME oneM2M broker port
 MDNS_SERVICE_DESC = {'path': '/'}  # optional TXT records
 
 # Estado global da lâmpada
 lamp_state = {"on": False}
 
-
+# Global variables for cleanup
 zeroconf = None
 info = None
+server = None
+app_event = None
+root = None
+cleanup_done = False
 
 def get_local_ip() -> str:
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -39,12 +43,51 @@ def get_local_ip() -> str:
     return local_ip
 
 def cleanup():
-    global zeroconf, info
+    global zeroconf, info, server, root, cleanup_done
+    
+    # Prevent multiple cleanup calls
+    if cleanup_done:
+        return
+    cleanup_done = True
+    
+    print("Cleaning up...")
+    
+    # Stop the HTTP server
+    if server:
+        print("Shutting down HTTP server...")
+        try:
+            server.shutdown()
+            server.server_close()
+            server = None
+        except Exception as e:
+            print(f"Error shutting down server: {e}")
+    
+    # Close Tkinter window first
+    if root:
+        try:
+            root.quit()
+            root.destroy()
+            root = None
+        except Exception as e:
+            print(f"Error closing GUI: {e}")
+    
+    # Unregister mDNS service
     if zeroconf and info:
         print("Unregistering mDNS service...")
-        zeroconf.unregister_service(info)
-        zeroconf.close()
-        print("mDNS service unregistered")
+        try:
+            zeroconf.unregister_service(info)
+            time.sleep(0.1)  # Give it a moment to unregister
+            zeroconf.close()
+            zeroconf = None
+            info = None
+            print("mDNS service unregistered")
+        except Exception as e:
+            print(f"Error unregistering mDNS: {e}")
+
+def signal_handler(signum, frame):
+    print(f"\nReceived signal {signum}. Shutting down gracefully...")
+    cleanup()
+    sys.exit(0)
 
 def register_service():
     global zeroconf, info
@@ -75,7 +118,6 @@ def register_service():
 
 class LampHandler(BaseHTTPRequestHandler):
     def do_POST(self):
-
         length = int(self.headers['Content-Length'], 0)
         data = self.rfile.read(length)
 
@@ -86,23 +128,32 @@ class LampHandler(BaseHTTPRequestHandler):
             print("Received notification:", value)
             # change the state of the lamp
             lamp_state["on"] = value
-            app_event.set()
-        except:
-            print("Erro ao decodificar JSON:")
+            if app_event:
+                app_event.set()
+        except Exception as e:
+            print("Erro ao decodificar JSON:", e)
 
         self.send_response(200)
         self.send_header('X-M2M-RSC', '2000')
-        ri = self.headers['X-M2M-RI']
+        ri = self.headers.get('X-M2M-RI', '')
         self.send_header('X-M2M-RI', ri)
         self.end_headers()
+    
+    def log_message(self, format, *args):
+        # Suppress default HTTP server logging
+        pass
         
 def start_server() -> None:
+    global server
     server = HTTPServer(('localhost', NOTIFICATION_SERVER_PORT), LampHandler)
     print(f"Notification server started: Listening on {NOTIFICATION_SERVER_PORT}")
 
     threading.Thread(target=create_subscription_request, daemon=True).start()
 
-    server.serve_forever()
+    try:
+        server.serve_forever()
+    except Exception as e:
+        print(f"Server error: {e}")
 
 def check_application_entity_exists() -> bool:
     headers = {
@@ -235,10 +286,18 @@ def update_lamp(canvas, lamp) -> None:
         canvas.itemconfig(lamp, fill="black", outline="gray", width=2)
 
 def gui_loop() -> None:
-    global app_event
+    global app_event, root
 
     root = tk.Tk()
     root.title("Lâmpada")
+    
+    # Handle window close event
+    def on_closing():
+        print("Window closing...")
+        cleanup()
+        # Don't call sys.exit() here, let mainloop() end naturally
+    
+    root.protocol("WM_DELETE_WINDOW", on_closing)
 
     canvas = tk.Canvas(root, width=200, height=200, bg="white")
     canvas.pack()
@@ -247,15 +306,33 @@ def gui_loop() -> None:
     lamp = canvas.create_oval(50, 50, 150, 150, fill="black", outline="gray", width=2)
 
     def check_event():
-        if app_event.is_set():
-            update_lamp(canvas, lamp)
-            app_event.clear()
-        root.after(100, check_event)
+        try:
+            if app_event and app_event.is_set():
+                update_lamp(canvas, lamp)
+                app_event.clear()
+            root.after(100, check_event)
+        except tk.TclError:
+            # Window has been destroyed
+            pass
 
     root.after(100, check_event)
-    root.mainloop()
+    
+    try:
+        root.mainloop()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # Only cleanup if not already done
+        if not cleanup_done:
+            cleanup()
 
 if __name__ == "__main__":
+    # Register signal handlers
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
+    # Don't register atexit cleanup since we handle it manually
+    
     try:
         if not check_application_entity_exists():
             if not create_application_entiry_request():
@@ -272,10 +349,14 @@ if __name__ == "__main__":
         # Start GUI loop
         gui_loop()
 
+    except KeyboardInterrupt:
+        print("\nKeyboard interrupt received")
+        cleanup()
     except Exception as e:
         print(f"Unexpected error occurred: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    finally:
         cleanup()
-
+    finally:
+        # Final cleanup only if not already done
+        if not cleanup_done:
+            cleanup()
+        sys.exit(0)
