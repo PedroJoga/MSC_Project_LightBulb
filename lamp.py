@@ -13,14 +13,14 @@ import uuid
 
 ACME_SERVER_URL = "http://localhost:8081/cse-in"
 DOCKER_HOST = "host.docker.internal"  # Docker host IP address
-APPLICATION_ENTITY_NAME = "Light-Bulb"
+APPLICATION_ENTITY_NAME = "LightBulb"
 CONTAINER_NAME = "Is-On"
 ORIGINATOR = "CAdmin2"
 
 NOTIFICATION_SERVER_PORT = 3000
 
 MDNS_SERVICE_TYPE = "_http._tcp.local."
-MDNS_SERVICE_NAME = f"LAMP_{str(uuid.uuid1())}" + "._http._tcp.local."
+MDNS_SERVICE_NAME = f"LIGHTBULB_{str(uuid.uuid1())}" + "._http._tcp.local."
 MDNS_SERVICE_PORT = 8081  # your ACME oneM2M broker port
 MDNS_SERVICE_DESC = {'path': '/'}  # optional TXT records
 
