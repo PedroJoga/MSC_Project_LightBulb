@@ -21,7 +21,7 @@ NOTIFICATION_SERVER_PORT = 3000
 
 MDNS_SERVICE_TYPE = "_http._tcp.local."
 MDNS_SERVICE_NAME = f"LIGHTBULB_{str(uuid.uuid1())}" + "._http._tcp.local."
-MDNS_SERVICE_PORT = 8081  # your ACME oneM2M broker port
+MDNS_SERVICE_PORT = 8081
 MDNS_SERVICE_DESC = {'path': '/'}  # optional TXT records
 
 # Estado global da lâmpada
@@ -331,20 +331,21 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     
-    # Don't register atexit cleanup since we handle it manually
-    
     try:
+        # ensure AE structure in oneM2M
         if not check_application_entity_exists():
             if not create_application_entiry_request():
                 sys.exit(1)
         if not create_container_request() or not set_initial_status_request():
             sys.exit(1)
-
-        register_service()
-
+        
+        # notification server   
         app_event = threading.Event()
         server_thread = threading.Thread(target=start_server, daemon=True)
         server_thread.start()
+
+        # register mDNS service
+        register_service()
 
         # Start GUI loop
         gui_loop()
